@@ -1,0 +1,110 @@
+#!/bin/bash
+
+# ========== COLORES ==========
+green="\e[0;32m\033[1m"
+red="\e[0;31m\033[1m"
+blue="\e[0;34m\033[1m"
+yellow="\e[0;33m\033[1m"
+purple="\e[0;35m\033[1m"
+gray="\e[0;37m\033[1m"
+end="\033[0m\e[0m"
+
+# ========== BANNER ==========
+banner() {
+    echo -e "${purple}"
+    echo "   _____                     _     ____  _           "
+    echo "  / ____|                   | |   / __ \| |          "
+    echo " | (___   ___  __ _ _ __ ___| |__| |  | | |__  _ __  "
+    echo "  \___ \ / _ \/ _\` | '__/ __| '_ \ |  | | '_ \| '_ \ "
+    echo "  ____) |  __/ (_| | | | (__| | | | |__| | |_) | | | |"
+    echo " |_____/ \___|\__,_|_|  \___|_| |_|\____/|_.__/|_| |_|"
+    echo -e "${end}"
+    echo -e "${gray}        GTFOBins Exploit Helper${end}"
+    echo
+}
+
+# ========== AYUDA ==========
+help_panel() {
+    banner
+    echo -e "${yellow}Uso:${end} searchobins -b <binario> [-f <funcion>] [-l]"
+    echo
+    echo -e "${blue}Opciones:${end}"
+    echo -e "   ${green}-b${end}  Binario (ej: python)"
+    echo -e "   ${green}-f${end}  Función (ej: shell)"
+    echo -e "   ${green}-l${end}  Listar funciones disponibles"
+    echo -e "   ${green}-h${end}  Mostrar ayuda"
+    echo
+    echo -e "${yellow}Ejemplos:${end}"
+    echo "   searchobins -b python -f shell"
+    echo "   searchobins -b python -l"
+    exit 0
+}
+
+# ========== PARÁMETROS ==========
+while getopts "b:f:lh" arg; do
+    case $arg in
+        b) binary=$OPTARG ;;
+        f) function=$OPTARG ;;
+        l) list_mode=true ;;
+        h) help_panel ;;
+        *) help_panel ;;
+    esac
+done
+
+# ========== VALIDACIÓN ==========
+if [[ -z "$binary" ]]; then
+    echo -e "${red}[!] Debes indicar al menos -b${end}"
+    help_panel
+fi
+
+url="https://gtfobins.org/gtfobins/$binary/"
+
+banner
+echo -e "${yellow}[+] Binario:${end} ${green}$binary${end}"
+echo
+
+html=$(curl -sL "$url")
+
+# ========== MODO LISTAR ==========
+if [[ "$list_mode" == true ]]; then
+    echo -e "${blue}[+] Funciones disponibles:${end}"
+    echo
+
+    echo "$html" \
+        | grep -oP 'id="[^"]+"' \
+        | cut -d'"' -f2 \
+        | grep -v "^$binary$" \
+        | sort -u
+
+    exit 0
+fi
+
+# ========== VALIDACIÓN MODO BÚSQUEDA ==========
+if [[ -z "$function" ]]; then
+    echo -e "${red}[!] Debes indicar -f o usar -l${end}"
+    exit 1
+fi
+
+echo -e "${yellow}[+] Función:${end} ${green}$function${end}"
+echo
+
+# ========== EXTRAER BLOQUE ==========
+section=$(echo "$html" | awk "/id=\"$function\"/,/<\/section>/")
+
+description=$(echo "$section" | grep -oP '(?<=<p>).*?(?=</p>)' | head -n 1)
+payload=$(echo "$section" | grep -oP '(?<=<code>).*?(?=</code>)' | head -n 1)
+
+description=$(echo "$description" | sed "s/&#39;/'/g; s/&lt;/</g; s/&gt;/>/g")
+payload=$(echo "$payload" | sed "s/&#39;/'/g; s/&lt;/</g; s/&gt;/>/g")
+
+if [[ -z "$payload" ]]; then
+    echo -e "${red}[!] No se encontró la función '${function}'${end}"
+    exit 1
+fi
+
+echo -e "${blue}[+] Explicación:${end}"
+echo "$description"
+echo
+
+echo -e "${green}[+] Payload:${end}"
+echo "$payload"
